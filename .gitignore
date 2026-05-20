@@ -1,0 +1,28 @@
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# Dependencies
+/backend/node_modules
+/frontend/build
+/frontend/.dart_tool
+
+# IDE and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Project summary
+PROJECT_SUMMARY.txt
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+.DS_Store
+*.pyc
