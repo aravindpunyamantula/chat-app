@@ -1,0 +1,43 @@
+name: frontend
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  provider: ^6.1.5+1
+  dio: ^5.9.2
+  socket_io_client: ^3.1.4
+  shared_preferences: ^2.5.5
+
+  # Offline-First / Local Database
+  drift: ^2.20.0
+  drift_flutter: ^0.2.1
+  sqlite3_flutter_libs: ^0.5.28
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # Connectivity
+  connectivity_plus: ^6.0.3
+
+  # Typography
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # Drift Code Generation
+  drift_dev: ^2.20.0
+  build_runner: ^2.4.13
+
+flutter:
+  uses-material-design: true
