@@ -9,6 +9,9 @@ const errorHandler = require('./middlewares/errorMiddleware');
 // Initialize Express App instance
 const app = express();
 
+// Trust reverse proxy headers (e.g. from Render, Cloudflare, etc.) for rate limiters
+app.set('trust proxy', 1);
+
 // 1. HTTP Security Headers (Helmet protects against signature leaking, clickjacking, MIME-sniffing)
 app.use(helmet());
 
