@@ -5,13 +5,17 @@ class ApiEndpoints {
   // Android emulator maps 10.0.2.2 → host machine.
   // Real Android device: replace _androidHost with your LAN IP (e.g. 192.168.1.x).
   // Production: replace both with your HTTPS domain.
+  // Set to true to target the live Render backend, or false for local development
+  static const bool useProduction = true;
+
+  static const String _prodHost = 'https://chat-app-yza5.onrender.com';
   static const String _webHost = 'http://localhost:5000';
   static const String _androidHost = 'http://10.0.2.2:5000';
 
-  static String get _host => kIsWeb ? _webHost : _androidHost;
+  static String get _host => useProduction ? _prodHost : (kIsWeb ? _webHost : _androidHost);
 
   static String get baseUrl => '$_host/api';
-  static String get wsUrl => kIsWeb ? 'http://localhost:5000' : 'http://10.0.2.2:5000';
+  static String get wsUrl => _host;
   static String get mediaBaseUrl => _host;
 
   // Auth
