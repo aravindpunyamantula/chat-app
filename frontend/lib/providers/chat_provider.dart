@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import '../core/constants/api_endpoints.dart';
+import '../core/network/api_client.dart';
 import '../core/network/socket_service.dart';
 import '../core/services/sync_manager.dart';
 import '../core/services/pending_queue_service.dart';
@@ -28,6 +31,12 @@ class ChatProvider with ChangeNotifier {
   bool isLoading = false;
   bool isLoadingMore = false;
   bool hasMoreMessages = false;
+
+  // Watch Together state
+  bool isWatchSessionActive = false;
+  String? watchVideoUrl;
+  bool isWatchHost = false;
+  String? incomingCastHostName; // non-null when partner starts a screen cast
 
   SocketConnectionState get connectionState => _socket.connectionState.value;
 
@@ -194,9 +203,110 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
+  // Upload a media file (image or video), then broadcast it as a message.
+  Future<void> sendMediaMessage(ApiClient apiClient, String filePath,
+      String mimeType) async {
+    if (activeConversationId == null || _currentUserId == null) return;
+
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: filePath.split('/').last),
+    });
+
+    try {
+      final uploadResponse = await apiClient.dio.post(
+        ApiEndpoints.upload,
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
+      );
+
+      final fileUrl = uploadResponse.data['fileUrl'] as String;
+      final messageType = uploadResponse.data['messageType'] as String;
+
+      final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+      final senderModel = _buildCurrentUserModel();
+
+      final optimisticMsg = MessageModel(
+        id: tempId,
+        tempId: tempId,
+        conversationId: activeConversationId!,
+        sender: senderModel,
+        content: '',
+        messageType: messageType,
+        fileUrl: fileUrl,
+        createdAt: DateTime.now(),
+        status: 'pending',
+      );
+
+      await _local.saveMessageLocally(optimisticMsg, isMine: true);
+
+      _socket.sendMessage(
+        {
+          'conversationId': activeConversationId,
+          'content': '',
+          'tempId': tempId,
+          'messageType': messageType,
+          'fileUrl': fileUrl,
+        },
+        ack: (dynamic response) async {
+          if (response == null) return;
+          final data = Map<String, dynamic>.from(response as Map);
+          if (data['success'] == true) {
+            final serverId = data['message']?['_id'] as String? ?? '';
+            if (serverId.isNotEmpty) {
+              await _local.replaceTempId(
+                tempId: tempId,
+                serverId: serverId,
+                status: 'sent',
+              );
+            }
+          }
+        },
+      );
+    } on DioException catch (e) {
+      AppLogger.error('ChatProvider: sendMediaMessage upload error — $e');
+    }
+  }
+
+  // ── Watch Together ─────────────────────────────────────────────────────────
+
+  void startWatchSession(String videoUrl) {
+    if (activeConversationId == null) return;
+    isWatchSessionActive = true;
+    isWatchHost = true;
+    watchVideoUrl = videoUrl;
+    _socket.startWatchSession(activeConversationId!, videoUrl);
+    notifyListeners();
+  }
+
+  void joinWatchSession(String videoUrl) {
+    if (activeConversationId == null) return;
+    isWatchSessionActive = true;
+    isWatchHost = false;
+    watchVideoUrl = videoUrl;
+    _socket.joinWatchSession(activeConversationId!);
+    notifyListeners();
+  }
+
+  void sendWatchSync(String action, double position) {
+    if (activeConversationId != null) {
+      _socket.sendWatchSync(activeConversationId!, action, position);
+    }
+  }
+
+  void endWatchSession() {
+    if (activeConversationId != null) {
+      _socket.endWatchSession(activeConversationId!);
+    }
+    isWatchSessionActive = false;
+    watchVideoUrl = null;
+    isWatchHost = false;
+    notifyListeners();
+  }
+
   Future<void> loadMoreMessages() async {
-    if (isLoadingMore || !hasMoreMessages || activeConversationId == null)
+    if (isLoadingMore || !hasMoreMessages || activeConversationId == null) {
       return;
+    }
     if (activeMessages.isEmpty) return;
 
     isLoadingMore = true;
@@ -213,7 +323,7 @@ class ChatProvider with ChangeNotifier {
       if (older.isEmpty) {
         hasMoreMessages = false;
       } else {
-        activeMessages = [...older.reversed.toList(), ...activeMessages];
+        activeMessages = [...older.reversed, ...activeMessages];
       }
     } catch (e) {
       AppLogger.warn('ChatProvider: loadMoreMessages error — $e');
@@ -294,6 +404,22 @@ class ChatProvider with ChangeNotifier {
         lastSeen: lastSeen,
       );
     };
+
+    _socket.onWatchSessionStarted = (hostId, hostName, videoUrl) {
+      isWatchSessionActive = true;
+      isWatchHost = false;
+      watchVideoUrl = videoUrl;
+      incomingCastHostName = videoUrl == 'cast:' ? hostName : null;
+      notifyListeners();
+    };
+
+    _socket.onWatchSessionEnded = (byId, byName) {
+      isWatchSessionActive = false;
+      watchVideoUrl = null;
+      isWatchHost = false;
+      incomingCastHostName = null;
+      notifyListeners();
+    };
   }
 
   void _onSocketStateChanged() {
@@ -329,6 +455,8 @@ class ChatProvider with ChangeNotifier {
     _socket.onMessagesRead = null;
     _socket.onTypingChanged = null;
     _socket.onUserStatusChanged = null;
+    _socket.onWatchSessionStarted = null;
+    _socket.onWatchSessionEnded = null;
     super.dispose();
   }
 }

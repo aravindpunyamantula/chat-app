@@ -1,11 +1,17 @@
 import 'dart:async';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import '../../core/network/api_client.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../data/models/message_model.dart';
 import '../shared/connection_status_banner.dart';
 import '../shared/user_status_text.dart';
+import '../watch/cast_screen.dart';
+import '../watch/platform_sync_screen.dart';
+import '../watch/watch_together_screen.dart';
 import 'widgets/message_bubble.dart';
 
 class _ChatItem {
@@ -30,6 +36,9 @@ class _ChatRoomViewState extends State<ChatRoomView> {
   MessageModel? _replyingTo;
   Timer? _typingTimer;
   bool _isTyping = false;
+  bool _showEmojiPicker = false;
+
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -44,6 +53,169 @@ class _ChatRoomViewState extends State<ChatRoomView> {
     _messageController.dispose();
     _typingTimer?.cancel();
     super.dispose();
+  }
+
+  void _toggleEmojiPicker() {
+    setState(() => _showEmojiPicker = !_showEmojiPicker);
+    if (_showEmojiPicker) FocusScope.of(context).unfocus();
+  }
+
+  void _onEmojiSelected(Category? category, Emoji emoji) {
+    final controller = _messageController;
+    final text = controller.text;
+    final selection = controller.selection;
+    final newText = text.replaceRange(
+      selection.start.clamp(0, text.length),
+      selection.end.clamp(0, text.length),
+      emoji.emoji,
+    );
+    controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(
+        offset: selection.start.clamp(0, text.length) + emoji.emoji.length,
+      ),
+    );
+  }
+
+  Future<void> _pickAndSendImage() async {
+    final XFile? picked = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) return;
+
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    final apiClient = Provider.of<ApiClient>(context, listen: false);
+
+    await chatProvider.sendMediaMessage(apiClient, picked.path, 'image/jpeg');
+  }
+
+  Future<void> _pickAndSendVideo() async {
+    final XFile? picked = await _imagePicker.pickVideo(source: ImageSource.gallery);
+    if (picked == null || !mounted) return;
+
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    final apiClient = Provider.of<ApiClient>(context, listen: false);
+
+    await chatProvider.sendMediaMessage(apiClient, picked.path, 'video/mp4');
+  }
+
+  void _openWatchMenu() {
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    final conversationId = chatProvider.activeConversationId ?? '';
+
+    // Partner started a screen cast → open as viewer
+    if (chatProvider.isWatchSessionActive &&
+        !chatProvider.isWatchHost &&
+        chatProvider.watchVideoUrl == 'cast:') {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => CastScreen(conversationId: conversationId, isHost: false),
+      ));
+      return;
+    }
+
+    // Partner started a video stream → open as viewer
+    if (chatProvider.isWatchSessionActive && !chatProvider.isWatchHost) {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => WatchTogetherScreen(
+          conversationId: conversationId,
+          initialVideoUrl: chatProvider.watchVideoUrl,
+          isHost: false,
+        ),
+      ));
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Text('Watch Together',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: theme.colorScheme.onSurface)),
+              ),
+              // Cast Screen — streams host's device screen (Netflix, Hotstar, etc.)
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.red.withValues(alpha: 0.15),
+                  child: const Icon(Icons.cast_rounded, color: Colors.red),
+                ),
+                title: const Text('Cast my screen'),
+                subtitle: const Text(
+                    'Stream what\'s on your screen — Netflix, Hotstar, any app'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  // Notify partner then open host cast screen
+                  chatProvider.startWatchSession('cast:');
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) =>
+                        CastScreen(conversationId: conversationId, isHost: true),
+                  ));
+                },
+              ),
+              // Watch Together — direct video URL or upload local file
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  child: Icon(Icons.play_circle_outline_rounded,
+                      color: theme.colorScheme.primary),
+                ),
+                title: const Text('Stream a video'),
+                subtitle: const Text('Cast a local file or stream from a URL'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => WatchTogetherScreen(
+                      conversationId: conversationId,
+                      isHost: true,
+                    ),
+                  ));
+                },
+              ),
+              // Platform Sync — sync timer for Netflix/Prime/Hotstar
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: theme.colorScheme.secondaryContainer,
+                  child: Icon(Icons.sync_rounded,
+                      color: theme.colorScheme.secondary),
+                ),
+                title: const Text('Platform Sync'),
+                subtitle: const Text(
+                    'Stay in sync while watching Netflix, Prime, Hotstar...'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) =>
+                        PlatformSyncScreen(conversationId: conversationId),
+                  ));
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _onScroll() {
@@ -194,16 +366,19 @@ class _ChatRoomViewState extends State<ChatRoomView> {
           backgroundColor: theme.colorScheme.surfaceContainerLow,
           elevation: 0,
           scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: Icon(
-              Icons.arrow_back_rounded,
-              color: theme.colorScheme.onSurface,
-            ),
-            onPressed: () {
-              chatProvider.deselectConversation();
-              Navigator.of(context).pop();
-            },
-          ),
+          automaticallyImplyLeading: false,
+          leading: Navigator.canPop(context)
+              ? IconButton(
+                  icon: Icon(
+                    Icons.arrow_back_rounded,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                  onPressed: () {
+                    chatProvider.deselectConversation();
+                    Navigator.of(context).pop();
+                  },
+                )
+              : null,
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -221,6 +396,37 @@ class _ChatRoomViewState extends State<ChatRoomView> {
               ),
             ],
           ),
+          actions: [
+            // Watch Together button — pulses when a session is active
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  tooltip: 'Watch Together',
+                  icon: Icon(
+                    Icons.movie_outlined,
+                    color: chatProvider.isWatchSessionActive
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurface,
+                  ),
+                  onPressed: _openWatchMenu,
+                ),
+                if (chatProvider.isWatchSessionActive)
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ),
         body: SafeArea(
           child: Center(
@@ -229,6 +435,13 @@ class _ChatRoomViewState extends State<ChatRoomView> {
               child: Column(
                 children: [
               const ConnectionStatusBanner(),
+
+              // Incoming cast notification banner
+              if (chatProvider.incomingCastHostName != null)
+                _IncomingCastBanner(
+                  hostName: chatProvider.incomingCastHostName!,
+                  onJoin: _openWatchMenu,
+                ),
 
               Expanded(
                 child: chatProvider.isLoading
@@ -504,6 +717,7 @@ class _ChatRoomViewState extends State<ChatRoomView> {
                   ),
                 ),
 
+              // ── Input bar ──────────────────────────────────────────────
               Container(
                 color: bottomInputBarColor,
                 padding: const EdgeInsets.only(
@@ -519,13 +733,74 @@ class _ChatRoomViewState extends State<ChatRoomView> {
                   ),
                   child: Row(
                     children: [
+                      // Emoji toggle
                       IconButton(
+                        tooltip: 'Emoji',
+                        icon: Icon(
+                          _showEmojiPicker
+                              ? Icons.keyboard_rounded
+                              : Icons.emoji_emotions_outlined,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        onPressed: _toggleEmojiPicker,
+                      ),
+                      // Image / video picker
+                      IconButton(
+                        tooltip: 'Attach image or video',
                         icon: Icon(
                           Icons.attach_file_rounded,
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
-                        onPressed: () {},
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            backgroundColor:
+                                theme.colorScheme.surfaceContainerHigh,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(16)),
+                            ),
+                            builder: (ctx) => SafeArea(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    margin:
+                                        const EdgeInsets.symmetric(vertical: 8),
+                                    width: 36,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.onSurface
+                                          .withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                  ListTile(
+                                    leading: Icon(Icons.image_rounded,
+                                        color: theme.colorScheme.primary),
+                                    title: const Text('Send Image'),
+                                    onTap: () {
+                                      Navigator.pop(ctx);
+                                      _pickAndSendImage();
+                                    },
+                                  ),
+                                  ListTile(
+                                    leading: Icon(Icons.videocam_rounded,
+                                        color: theme.colorScheme.primary),
+                                    title: const Text('Send Video'),
+                                    onTap: () {
+                                      Navigator.pop(ctx);
+                                      _pickAndSendVideo();
+                                    },
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
+                      // Text field
                       Expanded(
                         child: Semantics(
                           label: 'Message input field',
@@ -537,7 +812,12 @@ class _ChatRoomViewState extends State<ChatRoomView> {
                               color: theme.colorScheme.onSurface,
                             ),
                             textInputAction: TextInputAction.send,
-                            onSubmitted: (_) => _sendMessage(),
+                            onTap: () {
+                              if (_showEmojiPicker) {
+                                setState(() => _showEmojiPicker = false);
+                              }
+                            },
+                            onSubmitted: (val) => _sendMessage(),
                             decoration: InputDecoration(
                               hintText: 'Type a message...',
                               hintStyle: TextStyle(
@@ -564,11 +844,77 @@ class _ChatRoomViewState extends State<ChatRoomView> {
                   ),
                 ),
               ),
+
+              // ── Emoji picker panel ──────────────────────────────────────
+              if (_showEmojiPicker)
+                SizedBox(
+                  height: 280,
+                  child: EmojiPicker(
+                    onEmojiSelected: _onEmojiSelected,
+                    config: Config(
+                      emojiViewConfig: EmojiViewConfig(
+                        backgroundColor: theme.colorScheme.surfaceContainerLow,
+                        columns: 8,
+                        emojiSizeMax: 28,
+                      ),
+                      categoryViewConfig: CategoryViewConfig(
+                        backgroundColor: theme.colorScheme.surfaceContainerLow,
+                        iconColor: theme.colorScheme.onSurfaceVariant,
+                        iconColorSelected: theme.colorScheme.primary,
+                        indicatorColor: theme.colorScheme.primary,
+                      ),
+                      bottomActionBarConfig: const BottomActionBarConfig(
+                        enabled: false,
+                      ),
+                    ),
+                  ),
+                ),
             ],
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _IncomingCastBanner extends StatelessWidget {
+  final String hostName;
+  final VoidCallback onJoin;
+
+  const _IncomingCastBanner({required this.hostName, required this.onJoin});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.red.withValues(alpha: 0.12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.cast_rounded, color: Colors.red, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '$hostName is casting their screen',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.red,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onJoin,
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Watch', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }

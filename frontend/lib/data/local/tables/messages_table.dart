@@ -14,6 +14,7 @@ class MessagesTable extends Table {
 
   TextColumn get content => text()();
   TextColumn get messageType => text().withDefault(const Constant('text'))();
+  TextColumn get fileUrl => text().withDefault(const Constant(''))();
 
   TextColumn get status => text().withDefault(const Constant('pending'))();
 

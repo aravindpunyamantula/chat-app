@@ -13,6 +13,11 @@ const conversationSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isBonded: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     groupName: {
       type: String,
       trim: true,

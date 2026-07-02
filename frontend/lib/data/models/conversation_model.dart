@@ -5,6 +5,7 @@ class ConversationModel {
   final String id;
   final List<UserModel> participants;
   final bool isGroup;
+  final bool isBonded;
   final String groupName;
   final UserModel? groupAdmin;
   final MessageModel? lastMessage;
@@ -14,6 +15,7 @@ class ConversationModel {
     required this.id,
     required this.participants,
     required this.isGroup,
+    this.isBonded = false,
     required this.groupName,
     this.groupAdmin,
     this.lastMessage,
@@ -23,14 +25,15 @@ class ConversationModel {
   factory ConversationModel.fromJson(Map<String, dynamic> json) {
     var participantsList = (json['participants'] as List?) ?? [];
     List<UserModel> parsedParticipants = participantsList
-        .where((p) => p is Map)
-        .map((p) => UserModel.fromJson(p as Map<String, dynamic>))
+        .whereType<Map<String, dynamic>>()
+        .map((p) => UserModel.fromJson(p))
         .toList();
 
     return ConversationModel(
       id: json['_id'] ?? json['id'] ?? '',
       participants: parsedParticipants,
       isGroup: json['isGroup'] ?? false,
+      isBonded: json['isBonded'] ?? false,
       groupName: json['groupName'] ?? '',
       groupAdmin: json['groupAdmin'] != null && json['groupAdmin'] is Map
           ? UserModel.fromJson(json['groupAdmin'] as Map<String, dynamic>)
@@ -49,6 +52,7 @@ class ConversationModel {
       '_id': id,
       'participants': participants.map((p) => p.toJson()).toList(),
       'isGroup': isGroup,
+      'isBonded': isBonded,
       'groupName': groupName,
       'groupAdmin': groupAdmin?.toJson(),
       'lastMessage': lastMessage?.toJson(),

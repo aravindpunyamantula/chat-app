@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../data/models/message_model.dart';
@@ -37,6 +38,76 @@ class MessageBubble extends StatelessWidget {
                 ? theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.7)
                 : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
     );
+  }
+
+  Widget _buildMediaContent(BuildContext context, ThemeData theme, Color textColor) {
+    if (message.messageType == 'image' && message.fileUrl.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: CachedNetworkImage(
+          imageUrl: message.fileUrl,
+          width: 220,
+          fit: BoxFit.cover,
+          placeholder: (ctx, url) => Container(
+            width: 220,
+            height: 160,
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+          errorWidget: (ctx, url, err) => Container(
+            width: 220,
+            height: 80,
+            color: theme.colorScheme.errorContainer,
+            child: Icon(Icons.broken_image_rounded,
+                color: theme.colorScheme.onErrorContainer),
+          ),
+        ),
+      );
+    }
+
+    if (message.messageType == 'video' && message.fileUrl.isNotEmpty) {
+      return GestureDetector(
+        onTap: () {
+          // Video messages open the WatchTogetherScreen
+          // Navigation is handled by the parent via the message's fileUrl
+        },
+        child: Container(
+          width: 220,
+          height: 130,
+          decoration: BoxDecoration(
+            color: Colors.black87,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              const Icon(Icons.play_circle_filled_rounded,
+                  size: 52, color: Colors.white),
+              Positioned(
+                bottom: 8,
+                left: 10,
+                child: Text(
+                  'Video',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 11.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Default: text
+    return const SizedBox.shrink();
   }
 
   void _showActionSheet(BuildContext context) {
@@ -308,14 +379,18 @@ class MessageBubble extends StatelessWidget {
                           ),
                         ],
 
-                        Text(
-                          displayContent,
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 14.5,
-                            height: 1.35,
+                        if (message.messageType == 'image' ||
+                            message.messageType == 'video')
+                          _buildMediaContent(context, theme, textColor)
+                        else
+                          Text(
+                            displayContent,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 14.5,
+                              height: 1.35,
+                            ),
                           ),
-                        ),
                         const SizedBox(height: 3),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,

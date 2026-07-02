@@ -30,6 +30,20 @@ dependencies:
   # Typography
   google_fonts: ^6.2.1
 
+  # Media — images & video
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+  video_player: ^2.9.2
+  chewie: ^1.10.0
+
+  # Emoji picker
+  emoji_picker_flutter: ^4.4.0
+
+  # Security — biometric + PIN lock
+  local_auth: ^2.3.0
+  crypto: ^3.0.6
+  flutter_webrtc: ^0.11.7
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

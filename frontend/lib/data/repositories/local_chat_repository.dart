@@ -179,7 +179,7 @@ class LocalChatRepository {
       ),
       content: row.content,
       messageType: row.messageType,
-      fileUrl: '',
+      fileUrl: row.fileUrl,
       createdAt: row.createdAt,
       status: row.status,
     );
@@ -227,6 +227,7 @@ class LocalChatRepository {
       senderIsOnline: Value(m.sender.isOnline),
       content: m.content,
       messageType: Value(m.messageType),
+      fileUrl: Value(m.fileUrl),
       status: Value(m.status),
       createdAt: Value(m.createdAt),
       isMine: Value(isMine),

@@ -74,7 +74,10 @@ const registerChatHandlers = (io, socket) => {
       }
 
       const trimmedContent = content.trim();
-      if (trimmedContent.length === 0) {
+      const isMediaType = ['image', 'video', 'file'].includes(messageType);
+
+      // Text messages must have content; media messages may have empty content (caption is optional)
+      if (!isMediaType && trimmedContent.length === 0) {
         return socket.emit('error_response', { message: 'Message content cannot be empty.' });
       }
 
@@ -101,12 +104,15 @@ const registerChatHandlers = (io, socket) => {
       // Escape HTML characters to neutralize Stored persistent XSS vectors
       const sanitizedContent = escapeHTML(trimmedContent);
 
+      const allowedTypes = ['text', 'image', 'video', 'file'];
+      const safeType = allowedTypes.includes(messageType) ? messageType : 'text';
+
       // Create message document in database
       const message = await Message.create({
         conversationId,
         sender: socket.user._id,
         content: sanitizedContent,
-        messageType: messageType || 'text',
+        messageType: safeType,
         fileUrl: fileUrl || '',
         status: 'sent',
       });
@@ -240,6 +246,186 @@ const registerChatHandlers = (io, socket) => {
       }
     } catch (err) {
       logger.error(`Socket message_read error: ${err.message}`);
+    }
+  });
+
+
+  // ─── Watch Together ──────────────────────────────────────────────────────────
+
+  // 7. Host starts a watch session and shares a video URL with partner
+  socket.on('watch_session_start', async (data) => {
+    try {
+      const { conversationId, videoUrl } = data;
+      if (!conversationId || !mongoose.Types.ObjectId.isValid(conversationId)) return;
+      if (!videoUrl || typeof videoUrl !== 'string') return;
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) return;
+
+      const isParticipant = conversation.participants.some(
+        (pId) => pId.toString() === socket.user._id.toString()
+      );
+      if (!isParticipant) return;
+
+      // Relay session start to partner only (not back to sender)
+      socket.to(conversationId).emit('watch_session_started', {
+        hostId: socket.user._id,
+        hostName: socket.user.name,
+        videoUrl,
+      });
+
+      logger.info(`Watch session started by [${socket.user.name}] in room: ${conversationId}`);
+    } catch (err) {
+      logger.error(`Socket watch_session_start error: ${err.message}`);
+    }
+  });
+
+  // 8. Viewer notifies host they've joined the session
+  socket.on('watch_session_join', async (data) => {
+    try {
+      const { conversationId } = data;
+      if (!conversationId || !mongoose.Types.ObjectId.isValid(conversationId)) return;
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) return;
+
+      const isParticipant = conversation.participants.some(
+        (pId) => pId.toString() === socket.user._id.toString()
+      );
+      if (!isParticipant) return;
+
+      socket.to(conversationId).emit('watch_session_viewer_joined', {
+        viewerId: socket.user._id,
+        viewerName: socket.user.name,
+      });
+    } catch (err) {
+      logger.error(`Socket watch_session_join error: ${err.message}`);
+    }
+  });
+
+  // 9. Host sends play/pause/seek sync to partner
+  socket.on('watch_sync', async (data) => {
+    try {
+      const { conversationId, action, position } = data;
+      if (!conversationId || !mongoose.Types.ObjectId.isValid(conversationId)) return;
+
+      const validActions = ['play', 'pause', 'seek'];
+      if (!validActions.includes(action)) return;
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) return;
+
+      const isParticipant = conversation.participants.some(
+        (pId) => pId.toString() === socket.user._id.toString()
+      );
+      if (!isParticipant) return;
+
+      socket.to(conversationId).emit('watch_sync', {
+        action,
+        position: typeof position === 'number' ? position : 0,
+        fromId: socket.user._id,
+      });
+    } catch (err) {
+      logger.error(`Socket watch_sync error: ${err.message}`);
+    }
+  });
+
+  // 10. Either user ends the watch session
+  socket.on('watch_session_end', async (data) => {
+    try {
+      const { conversationId } = data;
+      if (!conversationId || !mongoose.Types.ObjectId.isValid(conversationId)) return;
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) return;
+
+      const isParticipant = conversation.participants.some(
+        (pId) => pId.toString() === socket.user._id.toString()
+      );
+      if (!isParticipant) return;
+
+      socket.to(conversationId).emit('watch_session_ended', {
+        byId: socket.user._id,
+        byName: socket.user.name,
+      });
+
+      logger.info(`Watch session ended by [${socket.user.name}] in room: ${conversationId}`);
+    } catch (err) {
+      logger.error(`Socket watch_session_end error: ${err.message}`);
+    }
+  });
+
+  // ─── WebRTC Signaling (for future P2P video streaming) ───────────────────────
+
+  // 11. Relay WebRTC offer (SDP) from caller to partner
+  socket.on('webrtc_offer', async (data) => {
+    try {
+      const { conversationId, sdp } = data;
+      if (!conversationId || !mongoose.Types.ObjectId.isValid(conversationId)) return;
+      if (!sdp) return;
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) return;
+
+      const isParticipant = conversation.participants.some(
+        (pId) => pId.toString() === socket.user._id.toString()
+      );
+      if (!isParticipant) return;
+
+      socket.to(conversationId).emit('webrtc_offer', {
+        sdp,
+        fromId: socket.user._id,
+      });
+    } catch (err) {
+      logger.error(`Socket webrtc_offer error: ${err.message}`);
+    }
+  });
+
+  // 12. Relay WebRTC answer (SDP) from callee back to caller
+  socket.on('webrtc_answer', async (data) => {
+    try {
+      const { conversationId, sdp } = data;
+      if (!conversationId || !mongoose.Types.ObjectId.isValid(conversationId)) return;
+      if (!sdp) return;
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) return;
+
+      const isParticipant = conversation.participants.some(
+        (pId) => pId.toString() === socket.user._id.toString()
+      );
+      if (!isParticipant) return;
+
+      socket.to(conversationId).emit('webrtc_answer', {
+        sdp,
+        fromId: socket.user._id,
+      });
+    } catch (err) {
+      logger.error(`Socket webrtc_answer error: ${err.message}`);
+    }
+  });
+
+  // 13. Relay ICE candidates between peers
+  socket.on('webrtc_ice_candidate', async (data) => {
+    try {
+      const { conversationId, candidate } = data;
+      if (!conversationId || !mongoose.Types.ObjectId.isValid(conversationId)) return;
+      if (!candidate) return;
+
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) return;
+
+      const isParticipant = conversation.participants.some(
+        (pId) => pId.toString() === socket.user._id.toString()
+      );
+      if (!isParticipant) return;
+
+      socket.to(conversationId).emit('webrtc_ice_candidate', {
+        candidate,
+        fromId: socket.user._id,
+      });
+    } catch (err) {
+      logger.error(`Socket webrtc_ice_candidate error: ${err.message}`);
     }
   });
 

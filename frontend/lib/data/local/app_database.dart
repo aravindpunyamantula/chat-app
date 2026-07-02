@@ -17,12 +17,18 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
-    onUpgrade: (m, from, to) async {},
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await customStatement(
+          'ALTER TABLE messages_table ADD COLUMN file_url TEXT NOT NULL DEFAULT ""',
+        );
+      }
+    },
     beforeOpen: (details) async {
       await customStatement('PRAGMA journal_mode=WAL');
       await customStatement('PRAGMA foreign_keys=ON');

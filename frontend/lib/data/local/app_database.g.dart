@@ -719,6 +719,18 @@ class $MessagesTableTable extends MessagesTable
     requiredDuringInsert: false,
     defaultValue: const Constant('text'),
   );
+  static const VerificationMeta _fileUrlMeta = const VerificationMeta(
+    'fileUrl',
+  );
+  @override
+  late final GeneratedColumn<String> fileUrl = GeneratedColumn<String>(
+    'file_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
@@ -765,6 +777,7 @@ class $MessagesTableTable extends MessagesTable
     senderIsOnline,
     content,
     messageType,
+    fileUrl,
     status,
     createdAt,
     isMine,
@@ -855,6 +868,12 @@ class $MessagesTableTable extends MessagesTable
         ),
       );
     }
+    if (data.containsKey('file_url')) {
+      context.handle(
+        _fileUrlMeta,
+        fileUrl.isAcceptableOrUnknown(data['file_url']!, _fileUrlMeta),
+      );
+    }
     if (data.containsKey('status')) {
       context.handle(
         _statusMeta,
@@ -918,6 +937,10 @@ class $MessagesTableTable extends MessagesTable
         DriftSqlType.string,
         data['${effectivePrefix}message_type'],
       )!,
+      fileUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_url'],
+      )!,
       status: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}status'],
@@ -950,6 +973,7 @@ class MessagesTableData extends DataClass
   final bool senderIsOnline;
   final String content;
   final String messageType;
+  final String fileUrl;
   final String status;
   final DateTime createdAt;
   final bool isMine;
@@ -963,6 +987,7 @@ class MessagesTableData extends DataClass
     required this.senderIsOnline,
     required this.content,
     required this.messageType,
+    required this.fileUrl,
     required this.status,
     required this.createdAt,
     required this.isMine,
@@ -979,6 +1004,7 @@ class MessagesTableData extends DataClass
     map['sender_is_online'] = Variable<bool>(senderIsOnline);
     map['content'] = Variable<String>(content);
     map['message_type'] = Variable<String>(messageType);
+    map['file_url'] = Variable<String>(fileUrl);
     map['status'] = Variable<String>(status);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['is_mine'] = Variable<bool>(isMine);
@@ -996,6 +1022,7 @@ class MessagesTableData extends DataClass
       senderIsOnline: Value(senderIsOnline),
       content: Value(content),
       messageType: Value(messageType),
+      fileUrl: Value(fileUrl),
       status: Value(status),
       createdAt: Value(createdAt),
       isMine: Value(isMine),
@@ -1019,6 +1046,7 @@ class MessagesTableData extends DataClass
       senderIsOnline: serializer.fromJson<bool>(json['senderIsOnline']),
       content: serializer.fromJson<String>(json['content']),
       messageType: serializer.fromJson<String>(json['messageType']),
+      fileUrl: serializer.fromJson<String>(json['fileUrl']),
       status: serializer.fromJson<String>(json['status']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       isMine: serializer.fromJson<bool>(json['isMine']),
@@ -1037,6 +1065,7 @@ class MessagesTableData extends DataClass
       'senderIsOnline': serializer.toJson<bool>(senderIsOnline),
       'content': serializer.toJson<String>(content),
       'messageType': serializer.toJson<String>(messageType),
+      'fileUrl': serializer.toJson<String>(fileUrl),
       'status': serializer.toJson<String>(status),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'isMine': serializer.toJson<bool>(isMine),
@@ -1053,6 +1082,7 @@ class MessagesTableData extends DataClass
     bool? senderIsOnline,
     String? content,
     String? messageType,
+    String? fileUrl,
     String? status,
     DateTime? createdAt,
     bool? isMine,
@@ -1066,6 +1096,7 @@ class MessagesTableData extends DataClass
     senderIsOnline: senderIsOnline ?? this.senderIsOnline,
     content: content ?? this.content,
     messageType: messageType ?? this.messageType,
+    fileUrl: fileUrl ?? this.fileUrl,
     status: status ?? this.status,
     createdAt: createdAt ?? this.createdAt,
     isMine: isMine ?? this.isMine,
@@ -1093,6 +1124,7 @@ class MessagesTableData extends DataClass
       messageType: data.messageType.present
           ? data.messageType.value
           : this.messageType,
+      fileUrl: data.fileUrl.present ? data.fileUrl.value : this.fileUrl,
       status: data.status.present ? data.status.value : this.status,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       isMine: data.isMine.present ? data.isMine.value : this.isMine,
@@ -1111,6 +1143,7 @@ class MessagesTableData extends DataClass
           ..write('senderIsOnline: $senderIsOnline, ')
           ..write('content: $content, ')
           ..write('messageType: $messageType, ')
+          ..write('fileUrl: $fileUrl, ')
           ..write('status: $status, ')
           ..write('createdAt: $createdAt, ')
           ..write('isMine: $isMine')
@@ -1129,6 +1162,7 @@ class MessagesTableData extends DataClass
     senderIsOnline,
     content,
     messageType,
+    fileUrl,
     status,
     createdAt,
     isMine,
@@ -1146,6 +1180,7 @@ class MessagesTableData extends DataClass
           other.senderIsOnline == this.senderIsOnline &&
           other.content == this.content &&
           other.messageType == this.messageType &&
+          other.fileUrl == this.fileUrl &&
           other.status == this.status &&
           other.createdAt == this.createdAt &&
           other.isMine == this.isMine);
@@ -1161,6 +1196,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessagesTableData> {
   final Value<bool> senderIsOnline;
   final Value<String> content;
   final Value<String> messageType;
+  final Value<String> fileUrl;
   final Value<String> status;
   final Value<DateTime> createdAt;
   final Value<bool> isMine;
@@ -1175,6 +1211,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessagesTableData> {
     this.senderIsOnline = const Value.absent(),
     this.content = const Value.absent(),
     this.messageType = const Value.absent(),
+    this.fileUrl = const Value.absent(),
     this.status = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.isMine = const Value.absent(),
@@ -1190,6 +1227,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessagesTableData> {
     this.senderIsOnline = const Value.absent(),
     required String content,
     this.messageType = const Value.absent(),
+    this.fileUrl = const Value.absent(),
     this.status = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.isMine = const Value.absent(),
@@ -1208,6 +1246,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessagesTableData> {
     Expression<bool>? senderIsOnline,
     Expression<String>? content,
     Expression<String>? messageType,
+    Expression<String>? fileUrl,
     Expression<String>? status,
     Expression<DateTime>? createdAt,
     Expression<bool>? isMine,
@@ -1224,6 +1263,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessagesTableData> {
       if (senderIsOnline != null) 'sender_is_online': senderIsOnline,
       if (content != null) 'content': content,
       if (messageType != null) 'message_type': messageType,
+      if (fileUrl != null) 'file_url': fileUrl,
       if (status != null) 'status': status,
       if (createdAt != null) 'created_at': createdAt,
       if (isMine != null) 'is_mine': isMine,
@@ -1241,6 +1281,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessagesTableData> {
     Value<bool>? senderIsOnline,
     Value<String>? content,
     Value<String>? messageType,
+    Value<String>? fileUrl,
     Value<String>? status,
     Value<DateTime>? createdAt,
     Value<bool>? isMine,
@@ -1256,6 +1297,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessagesTableData> {
       senderIsOnline: senderIsOnline ?? this.senderIsOnline,
       content: content ?? this.content,
       messageType: messageType ?? this.messageType,
+      fileUrl: fileUrl ?? this.fileUrl,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       isMine: isMine ?? this.isMine,
@@ -1293,6 +1335,9 @@ class MessagesTableCompanion extends UpdateCompanion<MessagesTableData> {
     if (messageType.present) {
       map['message_type'] = Variable<String>(messageType.value);
     }
+    if (fileUrl.present) {
+      map['file_url'] = Variable<String>(fileUrl.value);
+    }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
@@ -1320,6 +1365,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessagesTableData> {
           ..write('senderIsOnline: $senderIsOnline, ')
           ..write('content: $content, ')
           ..write('messageType: $messageType, ')
+          ..write('fileUrl: $fileUrl, ')
           ..write('status: $status, ')
           ..write('createdAt: $createdAt, ')
           ..write('isMine: $isMine, ')
@@ -2070,6 +2116,7 @@ typedef $$MessagesTableTableCreateCompanionBuilder =
       Value<bool> senderIsOnline,
       required String content,
       Value<String> messageType,
+      Value<String> fileUrl,
       Value<String> status,
       Value<DateTime> createdAt,
       Value<bool> isMine,
@@ -2086,6 +2133,7 @@ typedef $$MessagesTableTableUpdateCompanionBuilder =
       Value<bool> senderIsOnline,
       Value<String> content,
       Value<String> messageType,
+      Value<String> fileUrl,
       Value<String> status,
       Value<DateTime> createdAt,
       Value<bool> isMine,
@@ -2143,6 +2191,11 @@ class $$MessagesTableTableFilterComposer
 
   ColumnFilters<String> get messageType => $composableBuilder(
     column: $table.messageType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fileUrl => $composableBuilder(
+    column: $table.fileUrl,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2216,6 +2269,11 @@ class $$MessagesTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get fileUrl => $composableBuilder(
+    column: $table.fileUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnOrderings(column),
@@ -2280,6 +2338,9 @@ class $$MessagesTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get fileUrl =>
+      $composableBuilder(column: $table.fileUrl, builder: (column) => column);
+
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
 
@@ -2334,6 +2395,7 @@ class $$MessagesTableTableTableManager
                 Value<bool> senderIsOnline = const Value.absent(),
                 Value<String> content = const Value.absent(),
                 Value<String> messageType = const Value.absent(),
+                Value<String> fileUrl = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<bool> isMine = const Value.absent(),
@@ -2348,6 +2410,7 @@ class $$MessagesTableTableTableManager
                 senderIsOnline: senderIsOnline,
                 content: content,
                 messageType: messageType,
+                fileUrl: fileUrl,
                 status: status,
                 createdAt: createdAt,
                 isMine: isMine,
@@ -2364,6 +2427,7 @@ class $$MessagesTableTableTableManager
                 Value<bool> senderIsOnline = const Value.absent(),
                 required String content,
                 Value<String> messageType = const Value.absent(),
+                Value<String> fileUrl = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<bool> isMine = const Value.absent(),
@@ -2378,6 +2442,7 @@ class $$MessagesTableTableTableManager
                 senderIsOnline: senderIsOnline,
                 content: content,
                 messageType: messageType,
+                fileUrl: fileUrl,
                 status: status,
                 createdAt: createdAt,
                 isMine: isMine,

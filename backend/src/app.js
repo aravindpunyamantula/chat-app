@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -130,6 +131,17 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Serve uploaded media files (images, videos) — range-request support is built-in
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, '../public/uploads'), {
+    setHeaders: (res) => {
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    },
+  })
+);
 
 // Serve API Routes
 app.use('/api', apiRouter);
