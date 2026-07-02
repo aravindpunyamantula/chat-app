@@ -42,7 +42,7 @@ dependencies:
   # Security — biometric + PIN lock
   local_auth: ^2.3.0
   crypto: ^3.0.6
-  flutter_webrtc: ^0.11.7
+  flutter_webrtc: ^1.5.2
 
 dev_dependencies:
   flutter_test:
